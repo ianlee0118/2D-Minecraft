@@ -1,2 +1,3 @@
-simple readme for first commit
-simple reeadme for the second commit 
+# 2D Minecraft
+
+A 2D Minecraft-style game. Project ready for development.
