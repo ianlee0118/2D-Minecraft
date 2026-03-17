@@ -1,4 +1,5 @@
 import { GAME_WIDTH, GAME_HEIGHT } from './constants.js';
+import { gameLogger } from './utils/GameLogger.js';
 import { BootScene } from './scenes/BootScene.js';
 import { MainMenuScene } from './scenes/MainMenuScene.js';
 import { SaveSlotsScene } from './scenes/SaveSlotsScene.js';
@@ -10,6 +11,9 @@ import { InventoryScene } from './scenes/InventoryScene.js';
 import { CraftingTableScene } from './scenes/CraftingTableScene.js';
 import { FurnaceScene } from './scenes/FurnaceScene.js';
 import { DeathScene } from './scenes/DeathScene.js';
+import { MultiplayerMenuScene } from './scenes/MultiplayerMenuScene.js';
+import { LobbyScene } from './scenes/LobbyScene.js';
+import { MultiplayerGameScene } from './scenes/MultiplayerGameScene.js';
 
 const config = {
   type: Phaser.AUTO,
@@ -29,9 +33,25 @@ const config = {
   },
   scene: [
     BootScene, MainMenuScene, SaveSlotsScene, SettingsScene,
-    GameScene, HUDScene, PauseScene,
+    MultiplayerMenuScene, LobbyScene,
+    GameScene, MultiplayerGameScene,
+    HUDScene, PauseScene,
     InventoryScene, CraftingTableScene, FurnaceScene, DeathScene,
   ],
 };
 
-new Phaser.Game(config);
+window.addEventListener('error', (e) => {
+  gameLogger.error('Uncaught error:', e.message, e.filename, e.lineno);
+  gameLogger.logMemory();
+});
+
+window.addEventListener('unhandledrejection', (e) => {
+  gameLogger.error('Unhandled promise rejection:', e.reason);
+  gameLogger.logMemory();
+});
+
+const game = new Phaser.Game(config);
+game.events.on('error', (err) => {
+  gameLogger.error('Phaser error:', err);
+  gameLogger.logMemory();
+});

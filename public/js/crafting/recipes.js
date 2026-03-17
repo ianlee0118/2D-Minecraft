@@ -17,6 +17,15 @@ export const CRAFTING_RECIPES = [
   { pattern: [['iron_ingot', 'iron_ingot', 'iron_ingot'], [null, 'sticks', null], [null, 'sticks', null]], result: { itemId: 'iron_pickaxe', count: 1 } },
   { pattern: [['iron_ingot', 'iron_ingot'], ['iron_ingot', 'sticks'], [null, 'sticks']], result: { itemId: 'iron_axe', count: 1 } },
   { pattern: [['iron_ingot'], ['iron_ingot'], ['sticks']], result: { itemId: 'iron_sword', count: 1 } },
+
+  { pattern: [['diamond', 'diamond', 'diamond'], [null, 'sticks', null], [null, 'sticks', null]], result: { itemId: 'diamond_pickaxe', count: 1 } },
+  { pattern: [['diamond', 'diamond'], ['diamond', 'sticks'], [null, 'sticks']], result: { itemId: 'diamond_axe', count: 1 } },
+  { pattern: [['diamond'], ['diamond'], ['sticks']], result: { itemId: 'diamond_sword', count: 1 } },
+
+  { pattern: [[null, 'sticks', 'string'], ['sticks', null, 'string'], [null, 'sticks', 'string']], result: { itemId: 'bow', count: 1 } },
+  { pattern: [['iron_ingot'], ['sticks'], ['sticks']], result: { itemId: 'arrow', count: 4 } },
+
+  { pattern: [['iron_ingot', null, 'iron_ingot'], ['diamond', 'iron_ingot', 'diamond'], [null, 'wood_log', null]], result: { itemId: 'pistol', count: 1 } },
 ];
 
 export const SMELTING_RECIPES = [

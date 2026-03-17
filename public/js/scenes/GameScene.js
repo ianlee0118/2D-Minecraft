@@ -1,8 +1,12 @@
 import {
   TILE_SIZE, WORLD_WIDTH, WORLD_HEIGHT,
   PLAYER_REACH, GAME_WIDTH, GAME_HEIGHT, HOTBAR_SLOTS, MAX_HEALTH,
-  AUTOSAVE_INTERVAL, COAL_BURN_TIME,
+  AUTOSAVE_INTERVAL, COAL_BURN_TIME, DAY_LENGTH, NIGHT_START, NIGHT_END, DAWN_START,
+  TORCH_SUPPRESS_RADIUS, PISTOL_COOLDOWN, PISTOL_DAMAGE, PISTOL_RANGE, PISTOL_SPEED,
+  WARDEN_KILL_THRESHOLD,
 } from '../constants.js';
+import { soundManager } from '../audio/SoundManager.js';
+import { gameLogger } from '../utils/GameLogger.js';
 import { BLOCK_AIR, BLOCK_CRAFTING_TABLE, BLOCK_FURNACE, BLOCK_TORCH, BLOCKS } from '../blocks.js';
 import { ITEMS } from '../items.js';
 import { SMELTING_RECIPES } from '../crafting/recipes.js';
@@ -10,6 +14,8 @@ import { WorldGenerator } from '../world/WorldGenerator.js';
 import { Inventory } from '../inventory/Inventory.js';
 import { PlayerController } from '../player/PlayerController.js';
 import { SaveManager } from '../save/SaveManager.js';
+import { EnemyManager } from '../enemies/EnemyManager.js';
+import { CombatSystem } from '../combat/CombatSystem.js';
 
 function getSmeltRecipe(id) { return SMELTING_RECIPES.find(r => r.input === id) || null; }
 
@@ -28,6 +34,7 @@ export class GameScene extends Phaser.Scene {
     const result = gen.generate();
     this.worldData = result.data;
     this.originalWorldData = result.data.map(r => [...r]);
+    this.surfaceHeights = gen.surfaceHeights;
 
     this.blockChanges = {};
     if (this.loadData && this.loadData.blockChanges) {
@@ -48,8 +55,10 @@ export class GameScene extends Phaser.Scene {
       this.inventory = new Inventory();
       this.inventory.addItem('wooden_pickaxe', 1);
       this.inventory.addItem('wooden_axe', 1);
+      this.inventory.addItem('wooden_sword', 1);
       this.inventory.addItem('dirt', 32);
       this.inventory.addItem('wood_log', 16);
+      this.inventory.addItem('torch', 8);
     }
 
     const spawnX = this.loadData && this.loadData.playerX !== undefined ? this.loadData.playerX : result.spawnPoint.x;
@@ -87,9 +96,25 @@ export class GameScene extends Phaser.Scene {
     this.miningTime = 0;
     this.autoSaveTimer = 0;
 
+    this.dayTime = this.loadData && this.loadData.dayTime !== undefined ? this.loadData.dayTime : 0;
+    this.isNight = false;
+    this.nightOverlay = this.add.graphics().setDepth(50).setScrollFactor(0);
+    this.torchLightGfx = this.add.graphics().setDepth(3);
+
+    this.enemyManager = new EnemyManager(this);
+    this.combat = new CombatSystem(this);
+
+    this.killCount = 0;
+    this.wardenUnlocked = false;
+    this.wardenActive = false;
+    this.wardenSpawnPending = false;
+
     this.input.mouse.disableContextMenu();
     this.input.on('pointerdown', (pointer) => {
       if (pointer.rightButtonDown()) this.handleRightClick(pointer);
+    });
+    this.input.on('pointerup', (pointer) => {
+      if (pointer.button === 0) this.combat.handleLeftRelease();
     });
 
     this.input.on('wheel', (_p, _go, _dx, dy) => {
@@ -108,11 +133,19 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.input.keyboard.on('keydown-E', () => {
-      this.scene.launch('InventoryScene', { inventory: this.inventory });
-      this.scene.pause();
+      this.scene.launch('InventoryScene', { inventory: this.inventory, player: this.player });
     });
 
-    this.scene.launch('HUDScene', { inventory: this.inventory, player: this.player });
+    this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.BACK_SLASH).on('down', () => {
+      this.player.godMode = !this.player.godMode;
+      if (this.player.godMode) {
+        this.player.health = MAX_HEALTH;
+      } else {
+        this.player.disableFlight();
+      }
+    });
+
+    this.scene.launch('HUDScene', { inventory: this.inventory, player: this.player, gameScene: this });
     this.loadData = null;
   }
 
@@ -127,17 +160,53 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(_time, delta) {
-    this.player.update(delta);
-    this.updateTarget();
+    try {
+      if (!this.player?.sprite?.active) return;
+      this.player.update(delta);
+      this.updateTarget();
 
     const pointer = this.input.activePointer;
+    const held = this.inventory.getSelectedItemDef();
+    const isBow = held && held.toolType === 'bow';
+    const isSword = held && held.toolType === 'sword';
+    const isWeapon = isBow || isSword || (!held || !held.toolType);
+
+    const isPistol = held && held.toolType === 'pistol';
+
     if (pointer.leftButtonDown() && !pointer.rightButtonDown()) {
-      this.handleMining(delta);
+      if (held && held.spawnsEnemy && this.targetTile) {
+        if (!this._spawnUsed) {
+          this._spawnUsed = true;
+          const wx = this.targetTile.x * TILE_SIZE + TILE_SIZE / 2;
+          const wy = this.targetTile.y * TILE_SIZE + TILE_SIZE / 2;
+          this.spawnEnemyAt(held.spawnsEnemy, wx, wy);
+        }
+      } else if (isPistol) {
+        if (this.combat.attackCooldown <= 0) {
+          this.firePistolSP(pointer);
+        }
+      } else if (isBow) {
+        if (!this.combat.bowDrawing) this.combat.handleLeftClick(pointer);
+      } else if (this.targetTile && this.worldData[this.targetTile.y][this.targetTile.x] !== BLOCK_AIR && !isSword) {
+        this.handleMining(delta);
+      } else {
+        if (this.combat.attackCooldown <= 0) this.combat.handleLeftClick(pointer);
+        this.resetMining();
+      }
     } else {
+      this._spawnUsed = false;
       this.resetMining();
     }
 
+    this.combat.update(delta);
+    this.combat.checkPlayerArrowsVsEnemies();
+    this.updateBullets(delta);
+
+    this.updateDayNight(delta);
+    this.enemyManager.update(delta, this.isNight);
+
     this.drawHighlights();
+    this.drawTorchLights();
     this.updateFurnaces(delta);
 
     this.autoSaveTimer += delta / 1000;
@@ -145,6 +214,73 @@ export class GameScene extends Phaser.Scene {
       this.autoSaveTimer = 0;
       this.saveGame();
     }
+    } catch (err) {
+      gameLogger.error('GameScene update:', err);
+      gameLogger.logMemory();
+    }
+  }
+
+  updateDayNight(delta) {
+    this.dayTime = (this.dayTime + delta / 1000) % DAY_LENGTH;
+    const phase = this.dayTime / DAY_LENGTH;
+
+    let darkness = 0;
+    if (phase >= NIGHT_START && phase < NIGHT_END) {
+      darkness = 0.6;
+    } else if (phase >= NIGHT_END) {
+      const t = (phase - NIGHT_END) / (1.0 - NIGHT_END);
+      darkness = 0.6 * (1 - t);
+    } else if (phase >= NIGHT_START - 0.1 && phase < NIGHT_START) {
+      const t = (phase - (NIGHT_START - 0.1)) / 0.1;
+      darkness = 0.6 * t;
+    }
+
+    this.isNight = phase >= NIGHT_START && phase < 1.0;
+
+    this.nightOverlay.clear();
+    if (darkness > 0.01) {
+      this.nightOverlay.fillStyle(0x000022, darkness);
+      this.nightOverlay.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    }
+
+    const skyR = Math.floor(135 * (1 - darkness * 0.8));
+    const skyG = Math.floor(206 * (1 - darkness * 0.8));
+    const skyB = Math.floor(235 * (1 - darkness * 0.7));
+    this.cameras.main.setBackgroundColor(Phaser.Display.Color.GetColor(skyR, skyG, skyB));
+  }
+
+  drawTorchLights() {
+    this.torchLightGfx.clear();
+    const cam = this.cameras.main;
+    const viewLeft = cam.scrollX - 32;
+    const viewRight = cam.scrollX + cam.width / cam.zoom + 32;
+    const viewTop = cam.scrollY - 32;
+    const viewBottom = cam.scrollY + cam.height / cam.zoom + 32;
+
+    const txMin = Math.max(0, Math.floor(viewLeft / TILE_SIZE));
+    const txMax = Math.min(WORLD_WIDTH - 1, Math.ceil(viewRight / TILE_SIZE));
+    const tyMin = Math.max(0, Math.floor(viewTop / TILE_SIZE));
+    const tyMax = Math.min(WORLD_HEIGHT - 1, Math.ceil(viewBottom / TILE_SIZE));
+
+    for (let ty = tyMin; ty <= tyMax; ty++) {
+      for (let tx = txMin; tx <= txMax; tx++) {
+        if (this.worldData[ty][tx] === BLOCK_TORCH) {
+          const cx = tx * TILE_SIZE + TILE_SIZE / 2;
+          const cy = ty * TILE_SIZE + TILE_SIZE / 2;
+          const radius = TILE_SIZE * 4;
+          this.torchLightGfx.fillStyle(0xffcc33, 0.08);
+          this.torchLightGfx.fillCircle(cx, cy, radius);
+          this.torchLightGfx.fillStyle(0xffaa00, 0.12);
+          this.torchLightGfx.fillCircle(cx, cy, radius * 0.5);
+          this.torchLightGfx.fillStyle(0xffdd44, 0.15);
+          this.torchLightGfx.fillCircle(cx, cy, radius * 0.25);
+        }
+      }
+    }
+  }
+
+  spawnEnemyArrow(fromX, fromY, targetSprite) {
+    this.combat.spawnEnemyArrow(fromX, fromY, targetSprite);
   }
 
   updateTarget() {
@@ -172,6 +308,9 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.miningProgress += delta / 1000;
+    if (!this._lastMineSound) this._lastMineSound = 0;
+    this._lastMineSound += delta / 1000;
+    if (this._lastMineSound >= 0.25) { this._lastMineSound = 0; soundManager.play('mine_hit'); }
     if (this.miningProgress >= this.miningTime) {
       this.breakBlock(x, y);
       this.resetMining();
@@ -179,6 +318,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   calcMiningTime(blockDef, heldItem) {
+    if (this.player.godMode) return 0.1;
     const h = blockDef.hardness;
     if (h === 0) return 0.05;
     if (!blockDef.preferredTool) return h * 0.5;
@@ -203,6 +343,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.setBlock(tx, ty, BLOCK_AIR);
+    soundManager.play('block_break');
 
     if (blockDef.drops) this.spawnDrop(tx * TILE_SIZE + 8, ty * TILE_SIZE + 8, blockDef.drops);
 
@@ -240,7 +381,6 @@ export class GameScene extends Phaser.Scene {
 
     if (blockId === BLOCK_CRAFTING_TABLE) {
       this.scene.launch('CraftingTableScene', { inventory: this.inventory });
-      this.scene.pause();
       return;
     }
     if (blockId === BLOCK_FURNACE) {
@@ -249,7 +389,6 @@ export class GameScene extends Phaser.Scene {
         this.furnaces[key] = { input: null, fuel: null, output: null, smeltProgress: 0, fuelTime: 0, fuelMaxTime: 0 };
       }
       this.scene.launch('FurnaceScene', { inventory: this.inventory, furnace: this.furnaces[key] });
-      this.scene.pause();
       return;
     }
 
@@ -300,7 +439,7 @@ export class GameScene extends Phaser.Scene {
     const itemId = drop.getData('itemId');
     const count = drop.getData('count') || 1;
     const remaining = this.inventory.addItem(itemId, count);
-    if (remaining === 0) drop.destroy();
+    if (remaining === 0) { drop.destroy(); soundManager.play('item_pickup'); }
     else drop.setData('count', remaining);
   }
 
@@ -367,8 +506,131 @@ export class GameScene extends Phaser.Scene {
       inventory: this.inventory.toJSON(),
       furnaces: this.furnaces,
       createdAt: this.createdAt,
+      dayTime: this.dayTime,
     });
     SaveManager.saveSlot(this.saveSlot, data);
+  }
+
+  toggleDayNight() {
+    const phase = this.dayTime / DAY_LENGTH;
+    this.dayTime = phase < NIGHT_START ? NIGHT_START * DAY_LENGTH : 0;
+  }
+
+  spawnEnemyAt(type, wx, wy) {
+    if (!this.enemyManager) return;
+    this.enemyManager.createEnemy(wx, wy, type);
+  }
+
+  onEnemyKilled(type) {
+    if (type === 'warden') return;
+    this.killCount++;
+    if (this.killCount === WARDEN_KILL_THRESHOLD && !this.wardenUnlocked) {
+      this.wardenUnlocked = true;
+      this.triggerWardenEvent();
+    }
+    if (this.killCount > WARDEN_KILL_THRESHOLD && this.killCount % WARDEN_KILL_THRESHOLD === 0 && !this.wardenActive) {
+      this.triggerWardenEvent();
+    }
+  }
+
+  onWardenKilled() {
+    this.wardenActive = false;
+    const hud = this.scene.get('HUDScene');
+    if (hud && hud.flashMessage) hud.flashMessage('The Warden has been defeated!');
+  }
+
+  triggerWardenEvent() {
+    if (this.wardenActive) return;
+    this.wardenActive = true;
+    soundManager.play('warden_spawn');
+    this.cameras.main.shake(600, 0.008);
+
+    const hud = this.scene.get('HUDScene');
+    if (hud && hud.flashMessage) hud.flashMessage('A WARDEN HAS APPEARED!');
+
+    this.time.delayedCall(1500, () => {
+      if (this.enemyManager) this.spawnWardenNearPlayer();
+    });
+  }
+
+  spawnWardenNearPlayer() {
+    const px = this.player.sprite.x;
+    const ptx = Math.floor(px / TILE_SIZE);
+    for (let r = 8; r < 30; r++) {
+      for (const dir of [1, -1]) {
+        const tx = ptx + dir * r;
+        if (tx < 2 || tx >= WORLD_WIDTH - 2) continue;
+        const sy = this.surfaceHeights[tx];
+        if (sy <= 2 || sy >= WORLD_HEIGHT - 2) continue;
+        if (this.worldData[sy - 1][tx] !== BLOCK_AIR) continue;
+        if (this.worldData[sy - 2][tx] !== BLOCK_AIR) continue;
+        if (this.worldData[sy - 3][tx] !== BLOCK_AIR) continue;
+        const wx = tx * TILE_SIZE + TILE_SIZE / 2;
+        const wy = (sy - 3) * TILE_SIZE + TILE_SIZE / 2;
+        this.enemyManager.createEnemy(wx, wy, 'warden');
+        return;
+      }
+    }
+  }
+
+  firePistolSP(pointer) {
+    this.combat.attackCooldown = PISTOL_COOLDOWN;
+    soundManager.play('pistol_shot');
+    const px = this.player.sprite.x;
+    const py = this.player.sprite.y - 4;
+    const wp = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    const dx = wp.x - px, dy = wp.y - py;
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+    const vx = (dx / dist) * PISTOL_SPEED, vy = (dy / dist) * PISTOL_SPEED;
+
+    if (!this._bullets) this._bullets = [];
+    if (this._bullets.length >= 20) return;
+    const bullet = this.add.sprite(px, py, 'bullet_proj').setDepth(6);
+    const b = { sprite: bullet, vx, vy, life: 0, maxLife: PISTOL_RANGE * TILE_SIZE / PISTOL_SPEED };
+    this._bullets.push(b);
+  }
+
+  updateBullets(delta) {
+    if (!this._bullets) return;
+    const dt = delta / 1000;
+    for (let i = this._bullets.length - 1; i >= 0; i--) {
+      const b = this._bullets[i];
+      if (!b?.sprite?.active) { this._bullets.splice(i, 1); continue; }
+      b.sprite.x += b.vx * dt;
+      b.sprite.y += b.vy * dt;
+      b.sprite.rotation = Math.atan2(b.vy, b.vx);
+      b.life += dt;
+
+      const tx = Math.floor(b.sprite.x / TILE_SIZE);
+      const ty = Math.floor(b.sprite.y / TILE_SIZE);
+
+      if (b.life >= b.maxLife) {
+        b.sprite.destroy(); this._bullets.splice(i, 1); continue;
+      }
+
+      if (tx >= 0 && tx < WORLD_WIDTH && ty >= 0 && ty < WORLD_HEIGHT &&
+          this.worldData[ty][tx] !== BLOCK_AIR) {
+        const blockDef = BLOCKS[this.worldData[ty][tx]];
+        if (blockDef && blockDef.hardness > 0) {
+          this.setBlock(tx, ty, BLOCK_AIR);
+          if (blockDef.drops) this.spawnDrop(tx * TILE_SIZE + 8, ty * TILE_SIZE + 8, blockDef.drops);
+          soundManager.play('block_break');
+        }
+        b.sprite.destroy(); this._bullets.splice(i, 1); continue;
+      }
+
+      let hitEnemy = false;
+      for (const enemy of this.enemyManager.enemies) {
+        if (enemy.dead) continue;
+        const d = Math.sqrt((b.sprite.x - enemy.sprite.x) ** 2 + (b.sprite.y - enemy.sprite.y) ** 2);
+        if (d < TILE_SIZE * 1.2) {
+          enemy.takeDamage(PISTOL_DAMAGE, b.sprite.x);
+          soundManager.play('enemy_hurt');
+          hitEnemy = true; break;
+        }
+      }
+      if (hitEnemy) { b.sprite.destroy(); this._bullets.splice(i, 1); }
+    }
   }
 
   drawHighlights() {

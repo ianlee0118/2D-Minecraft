@@ -136,7 +136,6 @@ export class FurnaceScene extends Phaser.Scene {
     this.ui.returnHeldItem(this.inventory);
     this.progressGfx.destroy();
     this.ui.destroy();
-    this.scene.resume('GameScene');
     this.scene.stop();
   }
 }

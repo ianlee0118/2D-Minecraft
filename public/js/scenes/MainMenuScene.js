@@ -1,4 +1,5 @@
 import { GAME_WIDTH, GAME_HEIGHT } from '../constants.js';
+import { soundManager } from '../audio/SoundManager.js';
 
 export class MainMenuScene extends Phaser.Scene {
   constructor() { super('MainMenuScene'); }
@@ -16,12 +17,14 @@ export class MainMenuScene extends Phaser.Scene {
     this.createButton(GAME_WIDTH / 2, 240, 'Singleplayer', () => {
       this.scene.start('SaveSlotsScene');
     });
-    this.createButton(GAME_WIDTH / 2, 300, 'Multiplayer (Coming Soon)', null, true);
+    this.createButton(GAME_WIDTH / 2, 300, 'Multiplayer', () => {
+      this.scene.start('MultiplayerMenuScene');
+    });
     this.createButton(GAME_WIDTH / 2, 360, 'Settings', () => {
       this.scene.start('SettingsScene');
     });
 
-    this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 20, 'Phase 2 – Inventory, Crafting & Survival', {
+    this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 20, 'Phase 7 – The Warden  |  v7.0', {
       fontSize: '11px', fontFamily: 'monospace', color: '#555',
     }).setOrigin(0.5);
   }
@@ -35,7 +38,7 @@ export class MainMenuScene extends Phaser.Scene {
       btn.setInteractive({ useHandCursor: true });
       btn.on('pointerover', () => btn.setBackgroundColor('#555'));
       btn.on('pointerout', () => btn.setBackgroundColor('#333'));
-      btn.on('pointerdown', callback);
+      btn.on('pointerdown', () => { soundManager.play('click'); callback(); });
     }
   }
 }

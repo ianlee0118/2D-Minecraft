@@ -28,4 +28,19 @@ export const ITEMS = {
   iron_pickaxe:    { name: 'Iron Pickaxe',    maxStack: 1, toolType: 'pickaxe', miningSpeed: 6, maxDurability: 250, textureKey: 'tool_iron_pickaxe' },
   iron_axe:        { name: 'Iron Axe',        maxStack: 1, toolType: 'axe',     miningSpeed: 6, maxDurability: 250, textureKey: 'tool_iron_axe' },
   iron_sword:      { name: 'Iron Sword',      maxStack: 1, toolType: 'sword',   damage: 6,      maxDurability: 250, textureKey: 'tool_iron_sword' },
+
+  diamond_pickaxe: { name: 'Diamond Pickaxe', maxStack: 1, toolType: 'pickaxe', miningSpeed: 9, maxDurability: 500, textureKey: 'tool_diamond_pickaxe' },
+  diamond_axe:     { name: 'Diamond Axe',     maxStack: 1, toolType: 'axe',     miningSpeed: 9, maxDurability: 500, textureKey: 'tool_diamond_axe' },
+  diamond_sword:   { name: 'Diamond Sword',   maxStack: 1, toolType: 'sword',   damage: 8,      maxDurability: 500, textureKey: 'tool_diamond_sword' },
+
+  bow:             { name: 'Bow',             maxStack: 1, toolType: 'bow',    maxDurability: 384, textureKey: 'tool_bow' },
+  arrow:           { name: 'Arrow',           maxStack: 64, textureKey: 'item_arrow' },
+  string:          { name: 'String',          maxStack: 64, textureKey: 'item_string' },
+
+  pistol:          { name: 'Pistol',          maxStack: 1, toolType: 'pistol',  damage: 4,      maxDurability: null, textureKey: 'tool_pistol' },
+
+  spawn_zombie:    { name: 'Zombie Spawner',   maxStack: 64, textureKey: 'spawn_zombie',   spawnsEnemy: 'zombie' },
+  spawn_skeleton:  { name: 'Skeleton Spawner', maxStack: 64, textureKey: 'spawn_skeleton', spawnsEnemy: 'skeleton' },
+  spawn_spider:    { name: 'Spider Spawner',   maxStack: 64, textureKey: 'spawn_spider',   spawnsEnemy: 'cave_spider' },
+  spawn_warden:    { name: 'Warden Spawner',   maxStack: 64, textureKey: 'spawn_warden',   spawnsEnemy: 'warden' },
 };

@@ -76,7 +76,6 @@ export class CraftingTableScene extends Phaser.Scene {
     }
     this.ui.returnHeldItem(this.inventory);
     this.ui.destroy();
-    this.scene.resume('GameScene');
     this.scene.stop();
   }
 

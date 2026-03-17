@@ -127,6 +127,8 @@ export class BootScene extends Phaser.Scene {
       ['tool_stone_axe', '#8b6914', '#999', axeHead],
       ['tool_iron_pickaxe', '#8b6914', '#ccc', pickaxeHead],
       ['tool_iron_axe', '#8b6914', '#ccc', axeHead],
+      ['tool_diamond_pickaxe', '#8b6914', '#44d4cc', pickaxeHead],
+      ['tool_diamond_axe', '#8b6914', '#44d4cc', axeHead],
     ];
     for (const [key, handle, head, fn] of toolDefs) {
       this.genSmallTexture(key, 16, 16, ctx => drawToolBase(ctx, handle, head, fn));
@@ -134,6 +136,16 @@ export class BootScene extends Phaser.Scene {
     this.genSmallTexture('tool_wooden_sword', 16, 16, ctx => swordShape(ctx, '#a07844'));
     this.genSmallTexture('tool_stone_sword', 16, 16, ctx => swordShape(ctx, '#999'));
     this.genSmallTexture('tool_iron_sword', 16, 16, ctx => swordShape(ctx, '#ccc'));
+    this.genSmallTexture('tool_diamond_sword', 16, 16, ctx => swordShape(ctx, '#44d4cc'));
+
+    this.genSmallTexture('tool_bow', 16, 16, ctx => {
+      ctx.fillStyle = '#8b6914';
+      ctx.fillRect(4, 1, 2, 14);
+      ctx.fillRect(6, 0, 2, 1); ctx.fillRect(6, 14, 2, 1);
+      ctx.fillStyle = '#ccc';
+      ctx.fillRect(10, 1, 1, 14);
+      ctx.fillRect(8, 0, 2, 1); ctx.fillRect(8, 14, 2, 1);
+    });
 
     this.genItemTexture('item_coal', '#333', '#222', '#444');
     this.genItemTexture('item_diamond', '#44d4cc', '#33b5ae', '#66e8e0');
@@ -141,6 +153,106 @@ export class BootScene extends Phaser.Scene {
     this.genSmallTexture('item_sticks', 16, 16, ctx => {
       ctx.fillStyle = '#8b6914';
       for (let i = 0; i < 10; i++) ctx.fillRect(3 + i, 13 - i, 2, 2);
+    });
+    this.genSmallTexture('item_arrow', 16, 16, ctx => {
+      ctx.fillStyle = '#aaa';
+      ctx.fillRect(11, 1, 2, 3);
+      ctx.fillStyle = '#8b6914';
+      for (let i = 0; i < 10; i++) ctx.fillRect(3 + i, 13 - i, 2, 2);
+      ctx.fillStyle = '#ccc';
+      ctx.fillRect(12, 2, 2, 1); ctx.fillRect(13, 1, 1, 2);
+    });
+    this.genSmallTexture('item_string', 16, 16, ctx => {
+      ctx.fillStyle = '#ddd';
+      ctx.fillRect(4, 3, 1, 3); ctx.fillRect(5, 5, 1, 3);
+      ctx.fillRect(6, 7, 1, 3); ctx.fillRect(7, 9, 1, 3);
+      ctx.fillRect(8, 8, 1, 3); ctx.fillRect(9, 6, 1, 3);
+      ctx.fillRect(10, 4, 1, 3); ctx.fillRect(11, 3, 1, 3);
+    });
+
+    this.genSmallTexture('tool_pistol', 16, 16, ctx => {
+      ctx.fillStyle = '#555'; ctx.fillRect(3, 5, 10, 4);
+      ctx.fillStyle = '#444'; ctx.fillRect(4, 6, 8, 2);
+      ctx.fillStyle = '#666'; ctx.fillRect(2, 5, 2, 3);
+      ctx.fillStyle = '#8b6914'; ctx.fillRect(7, 9, 4, 5);
+      ctx.fillStyle = '#7a5c32'; ctx.fillRect(8, 10, 2, 3);
+      ctx.fillStyle = '#777'; ctx.fillRect(6, 9, 1, 2);
+    });
+    this.genSmallTexture('bullet_proj', 5, 3, ctx => {
+      ctx.fillStyle = '#ff0'; ctx.fillRect(0, 0, 5, 3);
+      ctx.fillStyle = '#ffa'; ctx.fillRect(1, 1, 3, 1);
+    });
+
+    this.genSmallTexture('arrow_proj', 8, 3, ctx => {
+      ctx.fillStyle = '#8b6914'; ctx.fillRect(0, 1, 5, 1);
+      ctx.fillStyle = '#ccc'; ctx.fillRect(5, 0, 3, 1); ctx.fillRect(5, 1, 3, 1); ctx.fillRect(5, 2, 3, 1);
+    });
+
+    this.genSmallTexture('enemy_zombie', 16, 30, ctx => {
+      ctx.fillStyle = '#4a6b2a'; ctx.fillRect(4, 0, 8, 4);
+      ctx.fillStyle = '#5a8b3a'; ctx.fillRect(4, 4, 8, 5);
+      ctx.fillStyle = '#300'; ctx.fillRect(6, 5, 1, 2); ctx.fillRect(9, 5, 1, 2);
+      ctx.fillStyle = '#3a5a2a'; ctx.fillRect(3, 9, 10, 9);
+      ctx.fillStyle = '#5a8b3a'; ctx.fillRect(1, 10, 2, 7); ctx.fillRect(13, 10, 2, 7);
+      ctx.fillStyle = '#3a4a2a'; ctx.fillRect(4, 18, 4, 8); ctx.fillRect(8, 18, 4, 8);
+      ctx.fillStyle = '#2a3a1a'; ctx.fillRect(3, 26, 5, 3); ctx.fillRect(8, 26, 5, 3);
+    });
+    this.genSmallTexture('enemy_skeleton', 16, 30, ctx => {
+      ctx.fillStyle = '#ddd'; ctx.fillRect(4, 0, 8, 4);
+      ctx.fillStyle = '#eee'; ctx.fillRect(4, 4, 8, 5);
+      ctx.fillStyle = '#111'; ctx.fillRect(5, 5, 2, 2); ctx.fillRect(9, 5, 2, 2);
+      ctx.fillStyle = '#111'; ctx.fillRect(6, 7, 4, 1);
+      ctx.fillStyle = '#bbb'; ctx.fillRect(5, 9, 6, 8);
+      ctx.fillStyle = '#ddd'; ctx.fillRect(2, 10, 3, 1); ctx.fillRect(11, 10, 3, 1);
+      ctx.fillStyle = '#ccc'; ctx.fillRect(3, 11, 1, 6); ctx.fillRect(12, 11, 1, 6);
+      ctx.fillStyle = '#aaa'; ctx.fillRect(5, 17, 2, 9); ctx.fillRect(9, 17, 2, 9);
+      ctx.fillStyle = '#999'; ctx.fillRect(4, 26, 3, 3); ctx.fillRect(9, 26, 3, 3);
+    });
+    this.genSmallTexture('enemy_spider', 20, 12, ctx => {
+      ctx.fillStyle = '#3a2020'; ctx.fillRect(6, 2, 8, 8);
+      ctx.fillStyle = '#5a3030'; ctx.fillRect(7, 3, 6, 6);
+      ctx.fillStyle = '#c00'; ctx.fillRect(8, 4, 2, 2); ctx.fillRect(11, 4, 2, 2);
+      ctx.fillStyle = '#2a1515';
+      for (let i = 0; i < 4; i++) {
+        ctx.fillRect(0 + i, 1 + i * 2, 6, 1);
+        ctx.fillRect(14 - i, 1 + i * 2, 6, 1);
+      }
+    });
+
+    this.genSmallTexture('enemy_warden', 24, 40, ctx => {
+      ctx.fillStyle = '#0a2a2a'; ctx.fillRect(4, 0, 16, 6);
+      ctx.fillStyle = '#0d3333'; ctx.fillRect(4, 6, 16, 8);
+      ctx.fillStyle = '#00ffff'; ctx.fillRect(7, 7, 3, 3); ctx.fillRect(14, 7, 3, 3);
+      ctx.fillStyle = '#0a2a2a'; ctx.fillRect(3, 14, 18, 14);
+      ctx.fillStyle = '#0d3333'; ctx.fillRect(5, 15, 14, 12);
+      ctx.fillStyle = '#073838'; ctx.fillRect(0, 16, 3, 10); ctx.fillRect(21, 16, 3, 10);
+      ctx.fillStyle = '#0a2a2a'; ctx.fillRect(5, 28, 6, 10); ctx.fillRect(13, 28, 6, 10);
+      ctx.fillStyle = '#082020'; ctx.fillRect(4, 38, 7, 2); ctx.fillRect(13, 38, 7, 2);
+      ctx.fillStyle = '#00cccc'; ctx.fillRect(8, 17, 2, 1); ctx.fillRect(14, 17, 2, 1);
+      ctx.fillRect(6, 22, 1, 2); ctx.fillRect(17, 22, 1, 2);
+      ctx.fillStyle = '#00aaaa'; ctx.fillRect(10, 20, 4, 1);
+    });
+
+    this.genSmallTexture('spawn_zombie', 16, 16, ctx => {
+      ctx.fillStyle = '#2a3a1a'; ctx.fillRect(0, 0, 16, 16);
+      ctx.fillStyle = '#5a8b3a'; ctx.fillRect(2, 2, 12, 12);
+      ctx.fillStyle = '#fff'; ctx.font = '10px monospace'; ctx.fillText('Z', 4, 12);
+    });
+    this.genSmallTexture('spawn_skeleton', 16, 16, ctx => {
+      ctx.fillStyle = '#333'; ctx.fillRect(0, 0, 16, 16);
+      ctx.fillStyle = '#ddd'; ctx.fillRect(2, 2, 12, 12);
+      ctx.fillStyle = '#000'; ctx.font = '10px monospace'; ctx.fillText('S', 4, 12);
+    });
+    this.genSmallTexture('spawn_spider', 16, 16, ctx => {
+      ctx.fillStyle = '#3a1515'; ctx.fillRect(0, 0, 16, 16);
+      ctx.fillStyle = '#5a3030'; ctx.fillRect(2, 2, 12, 12);
+      ctx.fillStyle = '#fff'; ctx.font = '10px monospace'; ctx.fillText('P', 4, 12);
+    });
+    this.genSmallTexture('spawn_warden', 16, 16, ctx => {
+      ctx.fillStyle = '#0a2a2a'; ctx.fillRect(0, 0, 16, 16);
+      ctx.fillStyle = '#0d3333'; ctx.fillRect(2, 2, 12, 12);
+      ctx.fillStyle = '#00cccc'; ctx.fillRect(4, 5, 3, 2); ctx.fillRect(9, 5, 3, 2);
+      ctx.fillStyle = '#fff'; ctx.font = '10px monospace'; ctx.fillText('W', 5, 12);
     });
 
     this.genSmallTexture('heart_full', 9, 9, ctx => {

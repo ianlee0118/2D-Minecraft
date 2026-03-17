@@ -38,6 +38,7 @@ export class SaveManager {
       furnaces: gameState.furnaces || {},
       createdAt: gameState.createdAt || Date.now(),
       lastPlayed: Date.now(),
+      dayTime: gameState.dayTime || 0,
     };
   }
 }
