@@ -93,6 +93,9 @@ export class SoundManager {
       warden_spawn: this._wardenSpawn,
       warden_hit: this._wardenHit,
       warden_death: this._wardenDeath,
+      bus_horn: this._busHorn,
+      poop_throw: this._poopThrow,
+      poop_splat: this._poopSplat,
     };
   }
 
@@ -455,6 +458,63 @@ export class SoundManager {
     osc2.frequency.exponentialRampToValueAtTime(200, t + 0.7);
     osc2.connect(g2);
     osc2.start(t + 0.2); osc2.stop(t + 0.8);
+  }
+
+  _busHorn(ctx) {
+    const t = ctx.currentTime;
+    const g = this._makeGain(ctx, 0.5);
+    g.gain.setValueAtTime(0.001, t);
+    g.gain.linearRampToValueAtTime(0.5 * this.volume, t + 0.05);
+    g.gain.setValueAtTime(0.4 * this.volume, t + 0.3);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+    const osc = ctx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(180, t);
+    osc.frequency.setValueAtTime(160, t + 0.25);
+    osc.connect(g);
+    osc.start(t); osc.stop(t + 0.5);
+  }
+
+  _poopThrow(ctx) {
+    const t = ctx.currentTime;
+    const g = this._makeGain(ctx, 0.35);
+    g.gain.setValueAtTime(0.35 * this.volume, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(250, t);
+    osc.frequency.exponentialRampToValueAtTime(100, t + 0.12);
+    osc.connect(g);
+    osc.start(t); osc.stop(t + 0.12);
+    const g2 = this._makeGain(ctx, 0.2);
+    g2.gain.setValueAtTime(0.2 * this.volume, t);
+    g2.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+    const noise = this._noise(ctx, 0.08, g2);
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = 600;
+    noise.disconnect(); noise.connect(lp); lp.connect(g2);
+    noise.start(t); noise.stop(t + 0.08);
+  }
+
+  _poopSplat(ctx) {
+    const t = ctx.currentTime;
+    const g = this._makeGain(ctx, 0.45);
+    g.gain.setValueAtTime(0.45 * this.volume, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+    const noise = this._noise(ctx, 0.15, g);
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = 500;
+    noise.disconnect(); noise.connect(lp); lp.connect(g);
+    noise.start(t); noise.stop(t + 0.15);
+    const g2 = this._makeGain(ctx, 0.3);
+    g2.gain.setValueAtTime(0.3 * this.volume, t);
+    g2.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+    const osc = ctx.createOscillator();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(150, t);
+    osc.frequency.exponentialRampToValueAtTime(50, t + 0.1);
+    osc.connect(g2);
+    osc.start(t); osc.stop(t + 0.1);
   }
 }
 

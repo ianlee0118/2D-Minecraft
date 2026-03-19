@@ -15,6 +15,8 @@ import { MultiplayerMenuScene } from './scenes/MultiplayerMenuScene.js';
 import { LobbyScene } from './scenes/LobbyScene.js';
 import { MultiplayerGameScene } from './scenes/MultiplayerGameScene.js';
 
+gameLogger.info('All modules imported successfully');
+
 const config = {
   type: Phaser.AUTO,
   parent: 'game-container',
@@ -50,7 +52,9 @@ window.addEventListener('unhandledrejection', (e) => {
   gameLogger.logMemory();
 });
 
+gameLogger.info('Creating Phaser game instance...');
 const game = new Phaser.Game(config);
+gameLogger.info('Phaser game created, starting BootScene');
 game.events.on('error', (err) => {
   gameLogger.error('Phaser error:', err);
   gameLogger.logMemory();

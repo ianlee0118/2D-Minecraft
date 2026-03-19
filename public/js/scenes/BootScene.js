@@ -1,5 +1,6 @@
 import { NUM_BLOCK_TYPES } from '../blocks.js';
 import { TILE_SIZE } from '../constants.js';
+import { gameLogger } from '../utils/GameLogger.js';
 
 const S = TILE_SIZE;
 function lcg(seed) { return ((seed * 1103515245 + 12345) & 0x7fffffff); }
@@ -109,7 +110,9 @@ export class BootScene extends Phaser.Scene {
   constructor() { super('BootScene'); }
 
   create() {
+    gameLogger.info('BootScene.create() — generating textures...');
     this.genBlockTextures();
+    gameLogger.info('BootScene: block textures done');
     this.genSmallTexture('player', 16, 30, ctx => {
       ctx.fillStyle = '#4a3728'; ctx.fillRect(4, 0, 8, 4);
       ctx.fillStyle = '#d4a574'; ctx.fillRect(4, 4, 8, 5);
@@ -173,10 +176,10 @@ export class BootScene extends Phaser.Scene {
     this.genSmallTexture('tool_pistol', 16, 16, ctx => {
       ctx.fillStyle = '#555'; ctx.fillRect(3, 5, 10, 4);
       ctx.fillStyle = '#444'; ctx.fillRect(4, 6, 8, 2);
-      ctx.fillStyle = '#666'; ctx.fillRect(2, 5, 2, 3);
-      ctx.fillStyle = '#8b6914'; ctx.fillRect(7, 9, 4, 5);
-      ctx.fillStyle = '#7a5c32'; ctx.fillRect(8, 10, 2, 3);
-      ctx.fillStyle = '#777'; ctx.fillRect(6, 9, 1, 2);
+      ctx.fillStyle = '#666'; ctx.fillRect(12, 5, 2, 3);
+      ctx.fillStyle = '#8b6914'; ctx.fillRect(5, 9, 4, 5);
+      ctx.fillStyle = '#7a5c32'; ctx.fillRect(6, 10, 2, 3);
+      ctx.fillStyle = '#777'; ctx.fillRect(9, 9, 1, 2);
     });
     this.genSmallTexture('bullet_proj', 5, 3, ctx => {
       ctx.fillStyle = '#ff0'; ctx.fillRect(0, 0, 5, 3);
@@ -281,6 +284,53 @@ export class BootScene extends Phaser.Scene {
       ctx.fillRect(1, 4, 3, 1); ctx.fillRect(2, 5, 2, 1); ctx.fillRect(3, 6, 1, 1);
     });
 
+    this.genSmallTexture('bum_player', 16, 38, ctx => {
+      ctx.fillStyle = '#3a2010'; ctx.fillRect(4, 0, 8, 5);
+      ctx.fillStyle = '#c48a54'; ctx.fillRect(4, 5, 8, 6);
+      ctx.fillStyle = '#333'; ctx.fillRect(6, 6, 1, 2); ctx.fillRect(9, 6, 1, 2);
+      ctx.fillStyle = '#4488ff'; ctx.fillRect(6, 8, 1, 3); ctx.fillRect(9, 8, 1, 3);
+      ctx.fillStyle = '#ff3333'; ctx.fillRect(6, 11, 4, 1);
+      ctx.fillStyle = '#e04030'; ctx.fillRect(3, 11, 10, 2);
+      ctx.fillStyle = '#ff6633'; ctx.fillRect(3, 13, 10, 8);
+      ctx.fillStyle = '#c48a54'; ctx.fillRect(1, 13, 2, 8); ctx.fillRect(13, 13, 2, 8);
+      ctx.fillStyle = '#fff'; ctx.fillRect(3, 15, 2, 2); ctx.fillRect(11, 15, 2, 2);
+      ctx.fillStyle = '#eee'; ctx.fillRect(6, 14, 4, 1);
+      ctx.fillStyle = '#fff'; ctx.fillRect(4, 21, 8, 9);
+      ctx.fillStyle = '#ddd'; ctx.fillRect(5, 22, 6, 7);
+      ctx.fillStyle = '#6b4420'; ctx.fillRect(5, 25, 6, 5);
+      ctx.fillStyle = '#fff'; ctx.fillRect(4, 30, 4, 6); ctx.fillRect(8, 30, 4, 6);
+      ctx.fillStyle = '#222'; ctx.fillRect(3, 36, 5, 2); ctx.fillRect(8, 36, 5, 2);
+    });
+
+    this.genSmallTexture('bum_bus', 48, 24, ctx => {
+      ctx.fillStyle = '#ccaa00'; ctx.fillRect(2, 4, 44, 16);
+      ctx.fillStyle = '#b89900'; ctx.fillRect(4, 6, 40, 12);
+      ctx.fillStyle = '#aaddff'; ctx.fillRect(5, 6, 7, 6); ctx.fillRect(14, 6, 7, 6);
+      ctx.fillRect(23, 6, 7, 6); ctx.fillRect(32, 6, 7, 6);
+      ctx.fillStyle = '#333'; ctx.fillRect(42, 8, 4, 8);
+      ctx.fillStyle = '#222'; ctx.fillRect(0, 4, 3, 16);
+      ctx.fillStyle = '#ff3300'; ctx.fillRect(0, 6, 2, 3); ctx.fillRect(0, 14, 2, 3);
+      ctx.fillStyle = '#ff0'; ctx.fillRect(46, 7, 2, 3); ctx.fillRect(46, 14, 2, 3);
+      ctx.fillStyle = '#444'; ctx.fillRect(8, 20, 8, 4); ctx.fillRect(32, 20, 8, 4);
+      ctx.fillStyle = '#333'; ctx.fillRect(10, 21, 4, 3); ctx.fillRect(34, 21, 4, 3);
+      ctx.fillStyle = '#000'; ctx.fillRect(3, 2, 8, 2);
+    });
+
+    this.genSmallTexture('poop_proj', 8, 8, ctx => {
+      ctx.fillStyle = '#6b4420'; ctx.fillRect(2, 2, 4, 4);
+      ctx.fillStyle = '#8b5a30'; ctx.fillRect(1, 3, 6, 3);
+      ctx.fillStyle = '#5a3310'; ctx.fillRect(3, 1, 2, 1);
+      ctx.fillStyle = '#7a4a25'; ctx.fillRect(2, 5, 4, 2);
+    });
+
+    this.genSmallTexture('poop_splat', 12, 8, ctx => {
+      ctx.fillStyle = '#6b4420'; ctx.fillRect(3, 2, 6, 4);
+      ctx.fillStyle = '#8b5a30'; ctx.fillRect(1, 3, 10, 3);
+      ctx.fillStyle = '#5a3310'; ctx.fillRect(0, 4, 12, 2);
+      ctx.fillStyle = '#7a4a25'; ctx.fillRect(2, 6, 3, 1); ctx.fillRect(7, 6, 3, 1);
+    });
+
+    gameLogger.info('BootScene: all textures generated, starting MainMenuScene');
     this.scene.start('MainMenuScene');
   }
 

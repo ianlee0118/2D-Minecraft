@@ -16,6 +16,9 @@ import { PlayerController } from '../player/PlayerController.js';
 import { SaveManager } from '../save/SaveManager.js';
 import { EnemyManager } from '../enemies/EnemyManager.js';
 import { CombatSystem } from '../combat/CombatSystem.js';
+import { isBumEnabled } from '../character/BrownUnderwearMode.js';
+import { BusSpawnSequence } from '../character/BusSpawnSequence.js';
+import { PoopAttack } from '../character/PoopAttack.js';
 
 function getSmeltRecipe(id) { return SMELTING_RECIPES.find(r => r.input === id) || null; }
 
@@ -30,8 +33,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   create() {
+    gameLogger.info('GameScene.create() — seed:', this.seed);
     const gen = new WorldGenerator(this.seed);
     const result = gen.generate();
+    gameLogger.info('GameScene: world generated');
     this.worldData = result.data;
     this.originalWorldData = result.data.map(r => [...r]);
     this.surfaceHeights = gen.surfaceHeights;
@@ -84,7 +89,8 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.cameras.main.setZoom(2);
-    this.cameras.main.startFollow(this.player.sprite, true, 0.1, 0.1);
+    this.cameras.main.setRoundPixels(true);
+    this.cameras.main.startFollow(this.player.sprite, true, 0.15, 0.15);
     this.cameras.main.setBounds(0, 0, WORLD_WIDTH * TILE_SIZE, WORLD_HEIGHT * TILE_SIZE);
     this.cameras.main.setBackgroundColor('#87CEEB');
     this.physics.world.setBounds(0, 0, WORLD_WIDTH * TILE_SIZE, WORLD_HEIGHT * TILE_SIZE);
@@ -111,7 +117,10 @@ export class GameScene extends Phaser.Scene {
 
     this.input.mouse.disableContextMenu();
     this.input.on('pointerdown', (pointer) => {
-      if (pointer.rightButtonDown()) this.handleRightClick(pointer);
+      if (pointer.rightButtonDown()) {
+        const uiOpen = this.scene.isActive('InventoryScene') || this.scene.isActive('CraftingTableScene') || this.scene.isActive('FurnaceScene');
+        if (!uiOpen) this.handleRightClick(pointer);
+      }
     });
     this.input.on('pointerup', (pointer) => {
       if (pointer.button === 0) this.combat.handleLeftRelease();
@@ -133,6 +142,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.input.keyboard.on('keydown-E', () => {
+      if (this.scene.isActive('CraftingTableScene') || this.scene.isActive('FurnaceScene')) return;
       this.scene.launch('InventoryScene', { inventory: this.inventory, player: this.player });
     });
 
@@ -146,7 +156,25 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.scene.launch('HUDScene', { inventory: this.inventory, player: this.player, gameScene: this });
+
+    this.bumMode = isBumEnabled();
+    this.busSpawn = null;
+    this.poopAttack = null;
+    if (this.bumMode) {
+      this.poopAttack = new PoopAttack(this);
+      if (!(this.loadData && this.loadData.playerX !== undefined)) {
+        this.busSpawn = new BusSpawnSequence(this, this.player.sprite, false);
+        this.player.setSpawnProtection();
+      }
+      this.input.keyboard.on('keydown-J', () => {
+        if (this.busSpawn && !this.busSpawn.done) return;
+        if (!this.player?.sprite?.active) return;
+        this.poopAttack.fire(this.player.sprite.x, this.player.sprite.y, this.player.sprite.flipX);
+      });
+    }
+
     this.loadData = null;
+    gameLogger.info('GameScene.create() complete — bumMode:', !!this.bumMode);
   }
 
   createTilemap() {
@@ -161,9 +189,18 @@ export class GameScene extends Phaser.Scene {
 
   update(_time, delta) {
     try {
+      if (this.busSpawn && !this.busSpawn.done) {
+        this.busSpawn.update(delta);
+        if (this.poopAttack) this.poopAttack.update(delta);
+        return;
+      }
       if (!this.player?.sprite?.active) return;
       this.player.update(delta);
+      const heldDef = this.inventory.getSelectedItemDef();
+      this.player.setHeldTool(heldDef?.textureKey ?? null);
       this.updateTarget();
+
+    const modalOpen = this.scene.isActive('InventoryScene') || this.scene.isActive('CraftingTableScene') || this.scene.isActive('FurnaceScene');
 
     const pointer = this.input.activePointer;
     const held = this.inventory.getSelectedItemDef();
@@ -173,7 +210,12 @@ export class GameScene extends Phaser.Scene {
 
     const isPistol = held && held.toolType === 'pistol';
 
-    if (pointer.leftButtonDown() && !pointer.rightButtonDown()) {
+    if (modalOpen) {
+      this.resetMining();
+      this._spawnUsed = false;
+      this.combat.bowDrawing = false;
+      this.combat.bowDrawTime = 0;
+    } else if (pointer.leftButtonDown() && !pointer.rightButtonDown()) {
       if (held && held.spawnsEnemy && this.targetTile) {
         if (!this._spawnUsed) {
           this._spawnUsed = true;
@@ -193,7 +235,7 @@ export class GameScene extends Phaser.Scene {
         if (this.combat.attackCooldown <= 0) this.combat.handleLeftClick(pointer);
         this.resetMining();
       }
-    } else {
+    } else if (!modalOpen) {
       this._spawnUsed = false;
       this.resetMining();
     }
@@ -201,6 +243,7 @@ export class GameScene extends Phaser.Scene {
     this.combat.update(delta);
     this.combat.checkPlayerArrowsVsEnemies();
     this.updateBullets(delta);
+    if (this.poopAttack) this.poopAttack.update(delta);
 
     this.updateDayNight(delta);
     this.enemyManager.update(delta, this.isNight);
@@ -299,12 +342,18 @@ export class GameScene extends Phaser.Scene {
     const blockId = this.worldData[y][x];
     if (blockId === BLOCK_AIR) { this.resetMining(); return; }
 
+    const blockDef = BLOCKS[blockId];
+    const held = this.inventory.getSelectedItemDef();
+    const newMineTime = this.calcMiningTime(blockDef, held);
+
     if (!this.miningTarget || this.miningTarget.x !== x || this.miningTarget.y !== y) {
       this.miningTarget = { x, y };
       this.miningProgress = 0;
-      const blockDef = BLOCKS[blockId];
-      const held = this.inventory.getSelectedItemDef();
-      this.miningTime = this.calcMiningTime(blockDef, held);
+      this.miningTime = newMineTime;
+    } else if (Math.abs(newMineTime - this.miningTime) > 0.001) {
+      const ratio = this.miningTime > 0 ? this.miningProgress / this.miningTime : 0;
+      this.miningTime = newMineTime;
+      this.miningProgress = ratio * newMineTime;
     }
 
     this.miningProgress += delta / 1000;
@@ -485,6 +534,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   respawn() {
+    gameLogger.scene('GameScene', 'respawn');
     const gen = new WorldGenerator(this.seed);
     gen.generate();
     gen.findSpawnPoint();
@@ -493,6 +543,9 @@ export class GameScene extends Phaser.Scene {
     this.player.health = MAX_HEALTH;
     this.player.setSpawnProtection();
     this.player.lastGroundY = this.player.sprite.y;
+    if (this.bumMode) {
+      this.busSpawn = new BusSpawnSequence(this, this.player.sprite, true);
+    }
   }
 
   saveGame() {
@@ -518,7 +571,9 @@ export class GameScene extends Phaser.Scene {
 
   spawnEnemyAt(type, wx, wy) {
     if (!this.enemyManager) return;
-    this.enemyManager.createEnemy(wx, wy, type);
+    const pos = this.enemyManager.findValidSpawn(wx, wy);
+    if (!pos) return;
+    this.enemyManager.createEnemy(pos.x, pos.y, type);
   }
 
   onEnemyKilled(type) {
@@ -637,6 +692,7 @@ export class GameScene extends Phaser.Scene {
     this.blockHighlight.clear();
     if (!this.targetTile) return;
     const { x: tx, y: ty } = this.targetTile;
+    if (this.worldData[ty][tx] === BLOCK_AIR) return;
     this.blockHighlight.lineStyle(1, 0xffffff, 0.8);
     this.blockHighlight.strokeRect(tx * TILE_SIZE, ty * TILE_SIZE, TILE_SIZE, TILE_SIZE);
     if (this.miningTarget && this.miningTime > 0) {

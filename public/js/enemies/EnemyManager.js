@@ -132,6 +132,38 @@ export class EnemyManager {
     return false;
   }
 
+  findValidSpawn(wx, wy) {
+    const world = this.scene.worldData;
+    if (!world) return null;
+    let tx = Math.floor(wx / TILE_SIZE);
+    let ty = Math.floor(wy / TILE_SIZE);
+    if (tx < 0 || tx >= WORLD_WIDTH || ty < 0 || ty >= WORLD_HEIGHT) return null;
+
+    const isSolid = (cx, cy) => {
+      if (cx < 0 || cx >= WORLD_WIDTH || cy < 0 || cy >= WORLD_HEIGHT) return true;
+      const b = world[cy][cx];
+      return b !== BLOCK_AIR;
+    };
+
+    if (isSolid(tx, ty)) {
+      for (let scanY = ty - 1; scanY >= 0; scanY--) {
+        if (!isSolid(tx, scanY)) { ty = scanY; break; }
+        if (scanY === 0) return null;
+      }
+    }
+
+    let groundY = null;
+    for (let scanY = ty; scanY < WORLD_HEIGHT; scanY++) {
+      if (isSolid(tx, scanY)) { groundY = scanY; break; }
+    }
+    if (groundY === null) return null;
+
+    const spawnTy = groundY - 1;
+    if (spawnTy < 0 || isSolid(tx, spawnTy)) return null;
+
+    return { x: tx * TILE_SIZE + TILE_SIZE / 2, y: spawnTy * TILE_SIZE + TILE_SIZE / 2 };
+  }
+
   createEnemy(x, y, type) {
     const enemy = new Enemy(this.scene, x, y, type);
     this.scene.physics.add.collider(enemy.sprite, this.scene.layer);

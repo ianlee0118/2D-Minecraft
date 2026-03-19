@@ -1,11 +1,13 @@
 import { GAME_WIDTH, GAME_HEIGHT, HOTBAR_SLOTS, MAX_HEALTH, DAY_LENGTH, NIGHT_START, BOW_DRAW_TIME, PISTOL_COOLDOWN, WARDEN_KILL_THRESHOLD } from '../constants.js';
 import { gameLogger } from '../utils/GameLogger.js';
 import { ITEMS } from '../items.js';
+import { isBumEnabled } from '../character/BrownUnderwearMode.js';
 
 export class HUDScene extends Phaser.Scene {
   constructor() { super('HUDScene'); }
 
   create(data) {
+    gameLogger.scene('HUDScene', 'create');
     this.inventory = data.inventory;
     this.player = data.player;
     this.gameScene = data.gameScene;
@@ -40,6 +42,11 @@ export class HUDScene extends Phaser.Scene {
       stroke: '#000', strokeThickness: 3,
     }).setOrigin(0.5, 0).setVisible(false).setDepth(10);
 
+    this.crouchLabel = this.add.text(GAME_WIDTH / 2, 26, 'CROUCHING', {
+      fontSize: '11px', fontFamily: 'monospace', color: '#ffaa44',
+      stroke: '#000', strokeThickness: 3,
+    }).setOrigin(0.5, 0).setVisible(false).setDepth(10);
+
     this.dayLabel = this.add.text(GAME_WIDTH - 10, 10, '', {
       fontSize: '11px', fontFamily: 'monospace', color: '#fff',
       stroke: '#000', strokeThickness: 2,
@@ -71,6 +78,11 @@ export class HUDScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(10).setVisible(false);
     this._lastSelectedSlot = -1;
     this._itemNameTimer = 0;
+
+    this.bumLabel = this.add.text(10, GAME_HEIGHT - 52, 'BUM  J=Throw', {
+      fontSize: '8px', fontFamily: 'monospace', color: '#da5',
+      stroke: '#000', strokeThickness: 2,
+    }).setDepth(10).setVisible(isBumEnabled());
   }
 
   flashMessage(msg) {
@@ -91,7 +103,10 @@ export class HUDScene extends Phaser.Scene {
       this.drawBowHint();
       this.drawItemName(delta);
       this.godLabel.setVisible(this.player && this.player.godMode);
-      this.flyLabel.setVisible(this.player && this.player.flying);
+      const isCrouching = this.player && this.player.crouching;
+      const isFlying = this.player && this.player.flying;
+      this.flyLabel.setVisible(isFlying && !isCrouching);
+      this.crouchLabel.setVisible(isCrouching && !isFlying);
 
       if (this.gameScene && this.gameScene.pvpEnabled !== undefined) {
         this.pvpLabel.setVisible(true);

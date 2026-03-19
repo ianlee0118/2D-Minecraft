@@ -1,10 +1,12 @@
 import { GAME_WIDTH, GAME_HEIGHT } from '../constants.js';
 import { SaveManager } from '../save/SaveManager.js';
+import { gameLogger } from '../utils/GameLogger.js';
 
 export class SaveSlotsScene extends Phaser.Scene {
   constructor() { super('SaveSlotsScene'); }
 
   create() {
+    gameLogger.scene('SaveSlotsScene', 'create');
     this.cameras.main.setBackgroundColor('#1a1a2e');
     this.add.text(GAME_WIDTH / 2, 30, 'Singleplayer – Select World', {
       fontSize: '24px', fontFamily: 'monospace', color: '#eee'

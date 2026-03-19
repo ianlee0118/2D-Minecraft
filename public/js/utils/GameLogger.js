@@ -1,23 +1,33 @@
 /**
- * Lightweight game logger. Logs errors and optionally memory stats.
- * Set window.DEBUG_GAME = true in console to enable verbose logs.
+ * Lightweight game logger. Always prints info/warn/error to console.
+ * Set window.DEBUG_GAME = true in console to enable verbose (debug-level) logs.
  */
 const LOG_PREFIX = '[2D MC]';
 
 export const gameLogger = {
-  enabled: typeof window !== 'undefined' && !!window.DEBUG_GAME,
+  get enabled() {
+    return typeof window !== 'undefined' && !!window.DEBUG_GAME;
+  },
+
+  info(...args) {
+    console.log(LOG_PREFIX, ...args);
+  },
 
   log(...args) {
-    if (this.enabled) console.log(LOG_PREFIX, ...args);
+    if (this.enabled) console.log(LOG_PREFIX, '[DBG]', ...args);
   },
 
   warn(...args) {
-    console.warn(LOG_PREFIX, ...args);
+    console.warn(LOG_PREFIX, '[WARN]', ...args);
   },
 
   error(...args) {
-    console.error(LOG_PREFIX, ...args);
+    console.error(LOG_PREFIX, '[ERR]', ...args);
     this._lastError = { msg: args.join(' '), time: Date.now() };
+  },
+
+  scene(sceneName, event, ...extra) {
+    console.log(LOG_PREFIX, `[${sceneName}]`, event, ...extra);
   },
 
   _lastError: null,
@@ -36,7 +46,7 @@ export const gameLogger = {
 
   logMemory() {
     const mem = this.getMemoryInfo();
-    if (mem) this.log('Memory:', mem);
+    if (mem) this.info('Memory:', mem);
     return mem;
   },
 };

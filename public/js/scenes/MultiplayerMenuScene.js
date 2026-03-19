@@ -1,10 +1,12 @@
 import { GAME_WIDTH, GAME_HEIGHT } from '../constants.js';
 import { NetworkManager } from '../network/NetworkManager.js';
+import { gameLogger } from '../utils/GameLogger.js';
 
 export class MultiplayerMenuScene extends Phaser.Scene {
   constructor() { super('MultiplayerMenuScene'); }
 
   create() {
+    gameLogger.scene('MultiplayerMenuScene', 'create');
     this.cameras.main.setBackgroundColor('#1a1a2e');
     this.network = new NetworkManager();
     this.playerName = 'P-' + String(Math.floor(Math.random() * 10000)).padStart(4, '0');

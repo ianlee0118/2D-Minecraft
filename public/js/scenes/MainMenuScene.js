@@ -1,10 +1,12 @@
 import { GAME_WIDTH, GAME_HEIGHT } from '../constants.js';
 import { soundManager } from '../audio/SoundManager.js';
+import { gameLogger } from '../utils/GameLogger.js';
 
 export class MainMenuScene extends Phaser.Scene {
   constructor() { super('MainMenuScene'); }
 
   create() {
+    gameLogger.info('MainMenuScene.create()');
     this.cameras.main.setBackgroundColor('#1a1a2e');
 
     this.add.text(GAME_WIDTH / 2, 100, '2D MINECRAFT', {
@@ -24,7 +26,7 @@ export class MainMenuScene extends Phaser.Scene {
       this.scene.start('SettingsScene');
     });
 
-    this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 20, 'Phase 7 – The Warden  |  v7.0', {
+    this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 20, 'Phase 8 – Brown Underwear  |  v8.0', {
       fontSize: '11px', fontFamily: 'monospace', color: '#555',
     }).setOrigin(0.5);
   }

@@ -2,6 +2,7 @@ import { GAME_WIDTH, GAME_HEIGHT, HOTBAR_SLOTS, INVENTORY_SLOTS } from '../const
 import { InventoryUI } from '../ui/InventoryUI.js';
 import { ITEMS } from '../items.js';
 import { findRecipe, consumeIngredients } from '../crafting/CraftingSystem.js';
+import { gameLogger } from '../utils/GameLogger.js';
 
 const CSZ = 26;
 const CGAP = 2;
@@ -12,6 +13,7 @@ export class InventoryScene extends Phaser.Scene {
   constructor() { super('InventoryScene'); }
 
   create(data) {
+    gameLogger.scene('InventoryScene', 'create');
     this.inventory = data.inventory;
     this.player = data.player || null;
     this.craftGrid = [null, null, null, null];

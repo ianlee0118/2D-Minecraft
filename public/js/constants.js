@@ -4,6 +4,7 @@ export const WORLD_HEIGHT = 128;
 export const PLAYER_REACH = 5;
 export const MOVE_SPEED = 150;
 export const SPRINT_SPEED = 250;
+export const CROUCH_SPEED = 60;
 export const JUMP_VELOCITY = -330;
 export const GRAVITY = 900;
 export const HOTBAR_SLOTS = 9;

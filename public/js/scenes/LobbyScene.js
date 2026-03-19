@@ -1,9 +1,11 @@
 import { GAME_WIDTH, GAME_HEIGHT } from '../constants.js';
+import { gameLogger } from '../utils/GameLogger.js';
 
 export class LobbyScene extends Phaser.Scene {
   constructor() { super('LobbyScene'); }
 
   init(data) {
+    gameLogger.scene('LobbyScene', 'init');
     this.network = data.network;
     this.roomCode = data.roomCode;
     this.isHost = data.isHost;

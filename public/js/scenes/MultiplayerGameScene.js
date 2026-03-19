@@ -15,6 +15,9 @@ import { SMELTING_RECIPES } from '../crafting/recipes.js';
 import { WorldGenerator } from '../world/WorldGenerator.js';
 import { Inventory } from '../inventory/Inventory.js';
 import { PlayerController } from '../player/PlayerController.js';
+import { SpriteAnimator } from '../anim/SpriteAnimator.js';
+import { isBumEnabled, BUM_POOP_DAMAGE, BUM_POOP_SPEED, BUM_POOP_GRAVITY, BUM_POOP_COOLDOWN } from '../character/BrownUnderwearMode.js';
+import { BusSpawnSequence } from '../character/BusSpawnSequence.js';
 
 function getSmeltRecipe(id) { return SMELTING_RECIPES.find(r => r.input === id) || null; }
 
@@ -31,10 +34,12 @@ export class MultiplayerGameScene extends Phaser.Scene {
   }
 
   create() {
+    gameLogger.info('MultiplayerGameScene.create()');
     const gs = this.gameState;
 
     const gen = new WorldGenerator(gs.seed);
     const result = gen.generate();
+    gameLogger.info('MultiplayerGameScene: world generated');
     this.worldData = result.data;
     this.surfaceHeights = gen.surfaceHeights;
 
@@ -83,7 +88,8 @@ export class MultiplayerGameScene extends Phaser.Scene {
     }
 
     this.cameras.main.setZoom(2);
-    this.cameras.main.startFollow(this.player.sprite, true, 0.1, 0.1);
+    this.cameras.main.setRoundPixels(true);
+    this.cameras.main.startFollow(this.player.sprite, true, 0.15, 0.15);
     this.cameras.main.setBounds(0, 0, WORLD_WIDTH * TILE_SIZE, WORLD_HEIGHT * TILE_SIZE);
     this.cameras.main.setBackgroundColor('#87CEEB');
     this.physics.world.setBounds(0, 0, WORLD_WIDTH * TILE_SIZE, WORLD_HEIGHT * TILE_SIZE);
@@ -139,7 +145,37 @@ export class MultiplayerGameScene extends Phaser.Scene {
       this.network.emit('godmode_toggle', { enabled: this.player.godMode });
     });
 
+    this.bumMode = isBumEnabled();
+    this.busSpawn = null;
+    this.poopCooldown = 0;
+    this._poopBullets = [];
+    if (this.bumMode) {
+      this.busSpawn = new BusSpawnSequence(this, this.player.sprite, false);
+      this.player.setSpawnProtection();
+      this.network.emit('player_move', {
+        x: this.player.sprite.x, y: this.player.sprite.y,
+        flipX: false, bumMode: true,
+      });
+      this.input.keyboard.on('keydown-J', () => {
+        if (this.isDead) return;
+        if (this.busSpawn && !this.busSpawn.done) return;
+        if (!this.player?.sprite?.active) return;
+        if (this.poopCooldown > 0) return;
+        this.poopCooldown = BUM_POOP_COOLDOWN;
+        const px = this.player.sprite.x;
+        const py = this.player.sprite.y;
+        const flipX = this.player.sprite.flipX;
+        const dir = flipX ? -1 : 1;
+        const vx = BUM_POOP_SPEED * dir;
+        const vy = -BUM_POOP_SPEED * 0.35;
+        this.network.emit('fire_poop', { x: px, y: py - 4, vx, vy });
+        this.spawnPoopBullet(px + dir * 6, py - 4, vx, vy);
+        soundManager.play('poop_throw');
+      });
+    }
+
     this.gameState = null;
+    gameLogger.info('MultiplayerGameScene.create() complete — bumMode:', !!this.bumMode);
   }
 
   createTilemap() {
@@ -156,7 +192,10 @@ export class MultiplayerGameScene extends Phaser.Scene {
     this.input.mouse.disableContextMenu();
     this.input.on('pointerdown', (pointer) => {
       if (this.isDead) return;
-      if (pointer.rightButtonDown()) this.handleRightClick();
+      if (pointer.rightButtonDown()) {
+        const uiOpen = this.scene.isActive('InventoryScene') || this.scene.isActive('CraftingTableScene') || this.scene.isActive('FurnaceScene');
+        if (!uiOpen) this.handleRightClick();
+      }
     });
     this.input.on('pointerup', (pointer) => {
       if (pointer.button === 0 && this.bowDrawing) this.handleBowRelease();
@@ -174,6 +213,7 @@ export class MultiplayerGameScene extends Phaser.Scene {
     }
     this.input.keyboard.on('keydown-ESC', () => this.leaveGame());
     this.input.keyboard.on('keydown-E', () => {
+      if (this.scene.isActive('CraftingTableScene') || this.scene.isActive('FurnaceScene')) return;
       if (!this.isDead) this.scene.launch('InventoryScene', { inventory: this.inventory, player: this.player });
     });
   }
@@ -217,9 +257,9 @@ export class MultiplayerGameScene extends Phaser.Scene {
     this.network.on('enemy_hit', (d) => {
       const me = this.mpEnemies[d.id];
       if (me) {
-        me.sprite.setTint(0xff4444);
+        if (me.anim) me.anim.setTint(0xff4444);
         soundManager.play(me.type === 'warden' ? 'warden_hit' : 'enemy_hurt');
-        this.time.delayedCall(150, () => { if (me.sprite?.active) me.sprite.clearTint(); });
+        this.time.delayedCall(150, () => { if (me.anim) me.anim.clearTint(); });
       }
     });
 
@@ -248,8 +288,8 @@ export class MultiplayerGameScene extends Phaser.Scene {
         this.player.health = d.health;
         this.player.invulnTime = ATTACK_INVULN;
         soundManager.play('player_hurt');
-        this.player.sprite.setTint(0xff4444);
-        this.time.delayedCall(200, () => { if (this.player.sprite?.active) this.player.sprite.clearTint(); });
+        if (this.player.anim) this.player.anim.setTint(0xff4444);
+        this.time.delayedCall(200, () => { if (this.player.anim) this.player.anim.clearTint(); });
         if (d.fromX !== undefined && d.fromY !== undefined) {
           const dx = this.player.sprite.x - d.fromX;
           const dy = this.player.sprite.y - d.fromY;
@@ -262,8 +302,8 @@ export class MultiplayerGameScene extends Phaser.Scene {
       } else {
         const rp = this.remotePlayers[d.id];
         if (rp) {
-          rp.sprite.setTint(0xff4444);
-          this.time.delayedCall(200, () => { if (rp.sprite?.active) rp.sprite.clearTint(); });
+          if (rp.anim) rp.anim.setTint(0xff4444);
+          this.time.delayedCall(200, () => { if (rp.anim) rp.anim.clearTint(); });
         }
       }
     });
@@ -311,6 +351,9 @@ export class MultiplayerGameScene extends Phaser.Scene {
       }
       this.hideDeathScreen();
       this.syncInventoryToServer();
+      if (this.bumMode) {
+        this.busSpawn = new BusSpawnSequence(this, this.player.sprite, true);
+      }
     });
     this.network.on('player_respawned', (d) => {
       if (d.id === this.network.id) return;
@@ -341,18 +384,21 @@ export class MultiplayerGameScene extends Phaser.Scene {
     sprite.setOrigin(0.5, 0.5);
     sprite.body.setAllowGravity(false);
     sprite.body.setImmovable(true);
-    sprite.setTint(REMOTE_COLORS[idx % REMOTE_COLORS.length]);
     sprite.setDepth(4);
+    const anim = new SpriteAnimator(this, sprite, 'player', {
+      depth: 4, tint: REMOTE_COLORS[idx % REMOTE_COLORS.length],
+    });
     const label = this.add.text(0, 0, name || 'Player', {
       fontSize: '8px', fontFamily: 'monospace', color: '#fff',
       stroke: '#000', strokeThickness: 2,
     }).setOrigin(0.5, 1).setDepth(5);
-    this.remotePlayers[id] = { sprite, label, targetX: 0, targetY: 0, slot: 0 };
+    this.remotePlayers[id] = { sprite, anim, label, targetX: 0, targetY: 0, slot: 0, lastX: 0 };
   }
 
   removeRemotePlayer(id) {
     const rp = this.remotePlayers[id];
     if (!rp) return;
+    if (rp.anim) rp.anim.destroy();
     rp.sprite.destroy();
     rp.label.destroy();
     delete this.remotePlayers[id];
@@ -364,6 +410,15 @@ export class MultiplayerGameScene extends Phaser.Scene {
     rp.targetX = d.x;
     rp.targetY = d.y;
     rp.sprite.setFlipX(d.flipX);
+    if (d.bumMode && !rp.bumMode) {
+      rp.bumMode = true;
+      if (rp.anim) rp.anim.destroy();
+      rp.sprite.setTexture('bum_player');
+      const idx = Object.keys(this.remotePlayers).indexOf(d.id);
+      rp.anim = new SpriteAnimator(this, rp.sprite, 'bum_player', {
+        depth: 4, tint: REMOTE_COLORS[Math.abs(idx) % REMOTE_COLORS.length],
+      });
+    }
   }
 
   addEnemySprite(e) {
@@ -371,13 +426,21 @@ export class MultiplayerGameScene extends Phaser.Scene {
     if (this.mpEnemies[id] != null) return;
     const texture = ENEMY_TEXTURES[e.type] || 'enemy_zombie';
     const sprite = this.add.sprite(e.x, e.y, texture).setDepth(4).setOrigin(0.5, 0.5);
-    if (e.type === 'warden') sprite.setScale(0.75);
-    this.mpEnemies[id] = { sprite, targetX: e.x, targetY: e.y, type: e.type, direction: e.direction ?? 1 };
+    const anim = new SpriteAnimator(this, sprite, texture, {
+      depth: 4,
+      scale: e.type === 'warden' ? 0.75 : undefined,
+      showTool: e.type === 'skeleton',
+    });
+    if (e.type === 'skeleton') {
+      anim.setToolTexture(ITEMS.bow.textureKey);
+    }
+    this.mpEnemies[id] = { sprite, anim, targetX: e.x, targetY: e.y, type: e.type, direction: e.direction ?? 1, lastX: e.x };
   }
 
   removeEnemySprite(id) {
     const me = this.mpEnemies[id];
     if (!me) return;
+    if (me.anim) me.anim.destroy();
     me.sprite.destroy();
     delete this.mpEnemies[id];
   }
@@ -492,6 +555,13 @@ export class MultiplayerGameScene extends Phaser.Scene {
 
   update(_time, delta) {
     try {
+      if (this.busSpawn && !this.busSpawn.done) {
+        this.busSpawn.update(delta);
+        this.updatePoopBullets(delta);
+        this.updateRemotePlayers();
+        this.updateEnemySprites();
+        return;
+      }
       if (this.isDead) {
         this.updateRemotePlayers();
         this.updateEnemySprites();
@@ -502,10 +572,15 @@ export class MultiplayerGameScene extends Phaser.Scene {
 
       if (!this.player?.sprite?.active) return;
       this.player.update(delta);
+      const heldDef = this.inventory.getSelectedItemDef();
+      this.player.setHeldTool(heldDef?.textureKey ?? null);
     this.updateTarget();
 
     const dt = delta / 1000;
     if (this.attackCooldown > 0) this.attackCooldown -= dt;
+    if (this.poopCooldown > 0) this.poopCooldown -= dt;
+
+    const modalOpen = this.scene.isActive('InventoryScene') || this.scene.isActive('CraftingTableScene') || this.scene.isActive('FurnaceScene');
 
     const pointer = this.input.activePointer;
     const held = this.inventory.getSelectedItemDef();
@@ -515,9 +590,13 @@ export class MultiplayerGameScene extends Phaser.Scene {
 
     const isSpawner = held && held.spawnsEnemy;
 
-    if (pointer.leftButtonDown() && !pointer.rightButtonDown()) {
-      const inventoryOpen = this.scene.isActive('InventoryScene');
-      if (isSpawner && this.targetTile && !inventoryOpen) {
+    if (modalOpen) {
+      this.resetMining();
+      this._spawnUsed = false;
+      this.bowDrawing = false;
+      this.bowDrawTime = 0;
+    } else if (pointer.leftButtonDown() && !pointer.rightButtonDown()) {
+      if (isSpawner && this.targetTile) {
         if (!this._spawnUsed) {
           this._spawnUsed = true;
           const wx = this.targetTile.x * TILE_SIZE + TILE_SIZE / 2;
@@ -544,7 +623,7 @@ export class MultiplayerGameScene extends Phaser.Scene {
         }
         this.resetMining();
       }
-    } else {
+    } else if (!modalOpen) {
       this._spawnUsed = false;
       this.resetMining();
       if (!isBow) {
@@ -556,11 +635,13 @@ export class MultiplayerGameScene extends Phaser.Scene {
     this.positionTimer += delta;
     if (this.positionTimer > 66) {
       this.positionTimer = 0;
-      this.network.emit('player_move', {
+      const moveData = {
         x: this.player.sprite.x,
         y: this.player.sprite.y,
         flipX: this.player.sprite.flipX,
-      });
+      };
+      if (this.bumMode) moveData.bumMode = true;
+      this.network.emit('player_move', moveData);
     }
 
     this.invSyncTimer += delta;
@@ -573,6 +654,7 @@ export class MultiplayerGameScene extends Phaser.Scene {
     this.updateEnemySprites();
     this.updateArrowSprites(delta);
     this.updateBullets(delta);
+    this.updatePoopBullets(delta);
     this.updateDayNight(delta);
     this.drawHighlights();
     this.drawTorchLights();
@@ -593,7 +675,16 @@ export class MultiplayerGameScene extends Phaser.Scene {
 
     this.network.emit('melee_attack', { x: px, y: py, damage, direction: dir });
 
-    if (weaponDef && weaponDef.maxDurability) {
+    const range = MELEE_RANGE * TILE_SIZE;
+    let hit = false;
+    for (const me of Object.values(this.mpEnemies)) {
+      if (!me.sprite) continue;
+      const dx = me.sprite.x - px;
+      const dy = me.sprite.y - py;
+      if (Math.sqrt(dx * dx + dy * dy) <= range) { hit = true; break; }
+    }
+
+    if (hit && weaponDef && weaponDef.maxDurability) {
       this.inventory.useDurability(this.inventory.selectedSlot);
       this.syncInventoryToServer();
     }
@@ -681,23 +772,57 @@ export class MultiplayerGameScene extends Phaser.Scene {
     }
   }
 
+  spawnPoopBullet(x, y, vx, vy) {
+    const sprite = this.add.image(x, y, 'poop_proj').setDepth(6).setScale(0.8);
+    this._poopBullets.push({ sprite, vx, vy, life: 0 });
+  }
+
+  updatePoopBullets(delta) {
+    if (!this._poopBullets) return;
+    const dt = delta / 1000;
+    for (let i = this._poopBullets.length - 1; i >= 0; i--) {
+      const p = this._poopBullets[i];
+      if (!p.sprite?.active) { this._poopBullets.splice(i, 1); continue; }
+      p.vy += BUM_POOP_GRAVITY * dt;
+      p.sprite.x += p.vx * dt;
+      p.sprite.y += p.vy * dt;
+      p.sprite.rotation += dt * 6 * (p.vx > 0 ? 1 : -1);
+      p.life += dt;
+      if (p.life > 4) {
+        p.sprite.destroy(); this._poopBullets.splice(i, 1); continue;
+      }
+      const tx = Math.floor(p.sprite.x / TILE_SIZE);
+      const ty = Math.floor(p.sprite.y / TILE_SIZE);
+      if (tx < 0 || tx >= WORLD_WIDTH || ty < 0 || ty >= WORLD_HEIGHT ||
+          (this.worldData && this.worldData[ty][tx] !== BLOCK_AIR)) {
+        p.sprite.destroy(); this._poopBullets.splice(i, 1);
+      }
+    }
+  }
+
   syncInventoryToServer() {
     this.network.emit('sync_inventory', { inventory: this.inventory.slots.map(s => s ? { ...s } : null) });
   }
 
   updateRemotePlayers() {
     for (const rp of Object.values(this.remotePlayers)) {
+      const prevX = rp.sprite.x;
       rp.sprite.x += (rp.targetX - rp.sprite.x) * 0.25;
       rp.sprite.y += (rp.targetY - rp.sprite.y) * 0.25;
       rp.label.setPosition(rp.sprite.x, rp.sprite.y - 18);
+      const moving = Math.abs(rp.sprite.x - prevX) > 0.3;
+      if (rp.anim) rp.anim.update(16, { moving, onGround: true, justLanded: false, flipX: rp.sprite.flipX });
     }
   }
 
   updateEnemySprites() {
     for (const me of Object.values(this.mpEnemies)) {
+      const prevX = me.sprite.x;
       me.sprite.x += (me.targetX - me.sprite.x) * 0.3;
       me.sprite.y += (me.targetY - me.sprite.y) * 0.3;
       me.sprite.setFlipX(me.direction < 0);
+      const moving = Math.abs(me.sprite.x - prevX) > 0.5;
+      if (me.anim) me.anim.update(16, { moving, onGround: true, justLanded: false, flipX: me.direction < 0 });
     }
   }
 
@@ -727,12 +852,18 @@ export class MultiplayerGameScene extends Phaser.Scene {
     const blockId = this.worldData[y][x];
     if (blockId === BLOCK_AIR) { this.resetMining(); return; }
 
+    const blockDef = BLOCKS[blockId];
+    const held = this.inventory.getSelectedItemDef();
+    const newMineTime = this.calcMiningTime(blockDef, held);
+
     if (!this.miningTarget || this.miningTarget.x !== x || this.miningTarget.y !== y) {
       this.miningTarget = { x, y };
       this.miningProgress = 0;
-      const blockDef = BLOCKS[blockId];
-      const held = this.inventory.getSelectedItemDef();
-      this.miningTime = this.calcMiningTime(blockDef, held);
+      this.miningTime = newMineTime;
+    } else if (Math.abs(newMineTime - this.miningTime) > 0.001) {
+      const ratio = this.miningTime > 0 ? this.miningProgress / this.miningTime : 0;
+      this.miningTime = newMineTime;
+      this.miningProgress = ratio * newMineTime;
     }
 
     this.miningProgress += delta / 1000;
@@ -876,6 +1007,7 @@ export class MultiplayerGameScene extends Phaser.Scene {
     this.blockHighlight.clear();
     if (!this.targetTile) return;
     const { x: tx, y: ty } = this.targetTile;
+    if (this.worldData[ty][tx] === BLOCK_AIR) return;
     this.blockHighlight.lineStyle(1, 0xffffff, 0.8);
     this.blockHighlight.strokeRect(tx * TILE_SIZE, ty * TILE_SIZE, TILE_SIZE, TILE_SIZE);
     if (this.miningTarget && this.miningTime > 0) {

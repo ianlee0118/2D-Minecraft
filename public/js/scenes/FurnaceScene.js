@@ -2,6 +2,7 @@ import { GAME_WIDTH, GAME_HEIGHT, HOTBAR_SLOTS, INVENTORY_SLOTS, COAL_BURN_TIME 
 import { InventoryUI } from '../ui/InventoryUI.js';
 import { SMELTING_RECIPES } from '../crafting/recipes.js';
 import { ITEMS } from '../items.js';
+import { gameLogger } from '../utils/GameLogger.js';
 
 function getSmeltRecipe(itemId) {
   return SMELTING_RECIPES.find(r => r.input === itemId) || null;
@@ -11,6 +12,7 @@ export class FurnaceScene extends Phaser.Scene {
   constructor() { super('FurnaceScene'); }
 
   create(data) {
+    gameLogger.scene('FurnaceScene', 'create');
     this.inventory = data.inventory;
     this.furnace = data.furnace;
 

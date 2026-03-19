@@ -1,10 +1,12 @@
 import { GAME_WIDTH, GAME_HEIGHT } from '../constants.js';
 import { soundManager } from '../audio/SoundManager.js';
+import { gameLogger } from '../utils/GameLogger.js';
 
 export class PauseScene extends Phaser.Scene {
   constructor() { super('PauseScene'); }
 
   create(data) {
+    gameLogger.scene('PauseScene', 'create');
     this.gameScene = data && data.gameScene;
     this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.7);
 

@@ -1,5 +1,7 @@
 import { TILE_SIZE, GRAVITY, KNOCKBACK_FORCE, WARDEN_HEALTH, WARDEN_DAMAGE, WARDEN_SPEED, WARDEN_KB_RESIST } from '../constants.js';
 import { soundManager } from '../audio/SoundManager.js';
+import { ITEMS } from '../items.js';
+import { SpriteAnimator } from '../anim/SpriteAnimator.js';
 
 const ENEMY_TYPES = {
   zombie: {
@@ -93,6 +95,14 @@ export class Enemy {
     this.sprite.body.setMaxVelocityY(600);
     this.sprite.setDepth(4);
     this.sprite.setData('enemy', this);
+    this.anim = new SpriteAnimator(scene, this.sprite, cfg.texture, {
+      depth: 4,
+      scale: cfg.isWarden ? 0.75 : undefined,
+      showTool: type === 'skeleton',
+    });
+    if (type === 'skeleton') {
+      this.anim.setToolTexture(ITEMS.bow.textureKey);
+    }
   }
 
   update(delta, playerSprite) {
@@ -101,9 +111,16 @@ export class Enemy {
     if (this.attackTimer > 0) this.attackTimer -= dt;
     if (this.invulnTimer > 0) {
       this.invulnTimer -= dt;
-      this.sprite.setAlpha(Math.sin(Date.now() / 60) > 0 ? 1 : 0.4);
-      if (this.invulnTimer <= 0) this.sprite.setAlpha(1);
+      if (this.invulnTimer <= 0) this.invulnTimer = 0;
     }
+    const alpha = this.invulnTimer > 0 ? (Math.sin(Date.now() / 60) > 0 ? 1 : 0.4) : 1;
+    this.anim.update(delta, {
+      moving: Math.abs(this.sprite.body.velocity.x) > 10,
+      onGround: this.sprite.body.blocked.down,
+      justLanded: false,
+      flipX: this.sprite.flipX,
+      alpha,
+    });
 
     const player = this.scene.player;
     if (player && player.godMode) {
@@ -204,9 +221,9 @@ export class Enemy {
     if (this.dead || this.invulnTimer > 0) return;
     this.health -= amount;
     this.invulnTimer = 0.3;
-    this.sprite.setTint(0xff4444);
+    this.anim.setTint(0xff4444);
     this.scene.time.delayedCall(150, () => {
-      if (this.sprite && this.sprite.active) this.sprite.clearTint();
+      if (this.anim) this.anim.clearTint();
     });
 
     const resist = this.cfg.kbResist || 0;
@@ -234,10 +251,12 @@ export class Enemy {
         : drop.count;
       this.scene.spawnDrop(this.sprite.x, this.sprite.y, drop.itemId, count);
     }
+    if (this.anim) { this.anim.destroy(); this.anim = null; }
     this.sprite.destroy();
   }
 
   destroy() {
+    if (this.anim) { this.anim.destroy(); this.anim = null; }
     if (this.sprite && this.sprite.active) this.sprite.destroy();
   }
 }

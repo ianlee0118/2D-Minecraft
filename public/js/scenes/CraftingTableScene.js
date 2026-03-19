@@ -1,11 +1,13 @@
 import { GAME_WIDTH, GAME_HEIGHT, HOTBAR_SLOTS, INVENTORY_SLOTS } from '../constants.js';
 import { InventoryUI } from '../ui/InventoryUI.js';
 import { findRecipe, consumeIngredients } from '../crafting/CraftingSystem.js';
+import { gameLogger } from '../utils/GameLogger.js';
 
 export class CraftingTableScene extends Phaser.Scene {
   constructor() { super('CraftingTableScene'); }
 
   create(data) {
+    gameLogger.scene('CraftingTableScene', 'create');
     this.inventory = data.inventory;
     this.craftGrid = new Array(9).fill(null);
     this.craftResult = null;

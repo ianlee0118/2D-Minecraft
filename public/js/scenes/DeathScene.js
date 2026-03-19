@@ -1,10 +1,12 @@
 import { GAME_WIDTH, GAME_HEIGHT } from '../constants.js';
 import { soundManager } from '../audio/SoundManager.js';
+import { gameLogger } from '../utils/GameLogger.js';
 
 export class DeathScene extends Phaser.Scene {
   constructor() { super('DeathScene'); }
 
   create() {
+    gameLogger.scene('DeathScene', 'create');
     soundManager.play('player_death');
     this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x330000, 0.8);
 

@@ -1,6 +1,7 @@
 import { Room } from './Room.js';
 import { TILE_SIZE, MELEE_RANGE, FIST_DAMAGE, ARROW_SPEED, ARROW_DAMAGE, MAX_HEALTH,
   PISTOL_DAMAGE, PISTOL_SPEED, PISTOL_RANGE } from '../public/js/constants.js';
+import { BUM_POOP_DAMAGE } from '../public/js/character/BrownUnderwearMode.js';
 
 function generateCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -29,6 +30,7 @@ export class GameServer {
     socket.on('melee_attack', (data) => this.onMeleeAttack(socket, data));
     socket.on('fire_bow', (data) => this.onFireBow(socket, data));
     socket.on('fire_pistol', (data) => this.onFirePistol(socket, data));
+    socket.on('fire_poop', (data) => this.onFirePoop(socket, data));
     socket.on('request_respawn', () => this.onRequestRespawn(socket));
     socket.on('toggle_pvp', () => this.onTogglePvP(socket));
     socket.on('sync_inventory', (data) => this.onSyncInventory(socket, data));
@@ -142,13 +144,12 @@ export class GameServer {
     if (p) {
       p.x = data.x;
       p.y = data.y;
+      if (data.bumMode) p.bumMode = true;
     }
 
-    socket.to(code).emit('player_moved', {
-      id: socket.id,
-      x: data.x, y: data.y,
-      flipX: data.flipX,
-    });
+    const out = { id: socket.id, x: data.x, y: data.y, flipX: data.flipX };
+    if (data.bumMode) out.bumMode = true;
+    socket.to(code).emit('player_moved', out);
   }
 
   onBreakBlock(socket, { tx, ty }) {
@@ -279,6 +280,37 @@ export class GameServer {
     }
   }
 
+  onFirePoop(socket, { x, y, vx, vy }) {
+    const room = this.getRoom(socket.id);
+    if (!room?.started || !room.enemySim) return;
+    const code = this.playerRooms.get(socket.id);
+
+    const dx = vx, dy = vy;
+    const speed = Math.sqrt(dx * dx + dy * dy) || 1;
+    const nx = dx / speed, ny = dy / speed;
+    const maxDist = 14 * TILE_SIZE;
+    const step = TILE_SIZE;
+
+    for (let d = 0; d < maxDist; d += step) {
+      const bx = x + nx * d;
+      const by = y + ny * d + 0.5 * 280 * Math.pow(d / speed, 2);
+      const tx = Math.floor(bx / TILE_SIZE), ty = Math.floor(by / TILE_SIZE);
+      if (tx < 0 || tx >= room.worldWidth || ty < 0 || ty >= room.worldHeight) break;
+      if (room.getBlock(tx, ty) !== 0) break;
+
+      let hit = false;
+      for (const e of room.enemySim.enemies) {
+        if (e.dead) continue;
+        const ed = Math.sqrt((e.x - bx) ** 2 + (e.y - by) ** 2);
+        if (ed < TILE_SIZE * 1.5) {
+          room.enemySim.damageEnemy(e, BUM_POOP_DAMAGE, bx, socket.id, this.io, code);
+          hit = true; break;
+        }
+      }
+      if (hit) break;
+    }
+  }
+
   onRequestRespawn(socket) {
     const room = this.getRoom(socket.id);
     if (!room?.started) return;
@@ -319,7 +351,9 @@ export class GameServer {
     const validTypes = ['zombie', 'skeleton', 'cave_spider', 'warden'];
     if (!validTypes.includes(type)) return;
     const code = this.playerRooms.get(socket.id);
-    const e = room.enemySim.createEnemy(x, y, type);
+    const pos = room.enemySim.findValidSpawn(x, y);
+    if (!pos) return;
+    const e = room.enemySim.createEnemy(pos.x, pos.y, type);
     if (!e) return;
     const payload = { id: e.id, type: e.type, x: e.x, y: e.y, direction: e.direction };
     this.io.to(code).emit('enemy_spawned', payload);
